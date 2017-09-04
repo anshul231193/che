@@ -16,8 +16,8 @@
     content: "";
     position: absolute;
     top: 0;
-    left: -14px;
-    right: 9px;
+    left: 0px;
+    right: 0px;
     height: 15px;
     background-color: insertion;
 }
@@ -32,8 +32,8 @@
     content: "";
     position: absolute;
     top: 0;
-    left: -14px;
-    right: 9px;
+    left: 0px;
+    right: 0px;
     height: 15px;
     background-color: modification;
 }

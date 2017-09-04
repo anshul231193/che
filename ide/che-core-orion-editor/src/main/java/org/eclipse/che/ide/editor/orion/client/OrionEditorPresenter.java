@@ -22,7 +22,10 @@ import static org.eclipse.che.ide.api.resources.ResourceDelta.REMOVED;
 import static org.eclipse.che.ide.api.resources.ResourceDelta.UPDATED;
 
 import com.google.common.base.Optional;
+import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.dom.client.DivElement;
+import com.google.gwt.dom.client.Style;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.event.dom.client.ContextMenuEvent;
@@ -36,6 +39,7 @@ import com.google.inject.Inject;
 import com.google.web.bindery.event.shared.EventBus;
 import com.google.web.bindery.event.shared.HandlerRegistration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import javax.validation.constraints.NotNull;
@@ -136,16 +140,13 @@ import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.vcs.HasVcsChangeMarkerRender;
 import org.eclipse.che.ide.api.vcs.VcsChangeMarkerRender;
 import org.eclipse.che.ide.api.vcs.VcsChangeMarkerRenderFactory;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionExtRulerOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionLinkedModelDataOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionLinkedModelGroupOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionLinkedModelOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionStyleOverlay;
-import org.eclipse.che.ide.editor.orion.client.jso.OrionTextViewOverlay;
+import org.eclipse.che.ide.debug.BreakpointResources;
+import org.eclipse.che.ide.editor.orion.client.jso.*;
 import org.eclipse.che.ide.editor.orion.client.menu.EditorContextMenu;
 import org.eclipse.che.ide.editor.orion.client.signature.SignatureHelpView;
 import org.eclipse.che.ide.part.editor.multipart.EditorMultiPartStackPresenter;
 import org.eclipse.che.ide.resource.Path;
+import org.eclipse.che.ide.util.dom.Elements;
 import org.vectomatic.dom.svg.ui.SVGResource;
 
 /**
@@ -724,8 +725,10 @@ public class OrionEditorPresenter extends AbstractEditorPresenter
         (resolve, reject) -> {
           String vcsChangeMarker = "vcsChangeMarker";
           OrionTextViewOverlay textView = editorWidget.getTextView();
+          List<OrionExtRulerOverlay> rulers = Arrays.asList(textView.getRulers());
           java.util.Optional<OrionExtRulerOverlay> optional =
-              stream(textView.getRulers())
+              rulers
+                  .stream()
                   .filter(ruler -> vcsChangeMarker.equals(ruler.getStyle().getStyleClass()))
                   .findAny();
           if (optional.isPresent()) {
@@ -733,13 +736,29 @@ public class OrionEditorPresenter extends AbstractEditorPresenter
           } else {
             OrionStyleOverlay style = OrionStyleOverlay.create();
             style.setStyleClass(vcsChangeMarker);
+
+            OrionAttributesOverlay attributesOverlay = OrionAttributesOverlay.create();
+            attributesOverlay.setAttribute(
+                "style", "width: 8px; position: relative; float: left; background-color: #31353e");
+            style.setAttributes(attributesOverlay);
             OrionExtRulerOverlay.create(
                 editorWidget.getEditor().getAnnotationModel(),
                 style,
                 OrionExtRulerOverlay.RulerLocation.LEFT.getLocation(),
                 OrionExtRulerOverlay.RulerOverview.PAGE.getOverview(),
                 orionExtRulerOverlay -> {
-                  textView.addRuler(orionExtRulerOverlay, textView.getRulers().length + 1);
+                  int index = 0;
+                  OrionExtRulerOverlay rulerLines = getRuller(rulers, "ruler lines");
+                  if (rulerLines != null) {
+                    index = rulers.indexOf(rulerLines) + 1;
+                  } else {
+                    OrionExtRulerOverlay rulerAnnotations = getRuller(rulers, "ruler annotations");
+                    if (rulerAnnotations != null) {
+                      index = rulers.indexOf(rulerAnnotations) + 1;
+                    }
+                  }
+
+                  textView.addRuler(orionExtRulerOverlay, index);
                   OrionVcsChangeMarkersRuler orionVcsChangeMarkersRuler =
                       new OrionVcsChangeMarkersRuler(
                           orionExtRulerOverlay, editorWidget.getEditor());
@@ -750,6 +769,14 @@ public class OrionEditorPresenter extends AbstractEditorPresenter
                 });
           }
         });
+  }
+
+  private OrionExtRulerOverlay getRuller(List<OrionExtRulerOverlay> rulers, String name) {
+    return rulers
+        .stream()
+        .filter(ruler -> name.equals(ruler.getStyle().getStyleClass()))
+        .findAny()
+        .orElse(null);
   }
 
   @Override
