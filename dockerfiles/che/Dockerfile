@@ -1,40 +1,30 @@
-# Copyright (c) 2012-2017 Red Hat, Inc.
-# All rights reserved. This program and the accompanying materials
-# are made available under the terms of the Eclipse Public License v1.0
-# which accompanies this distribution, and is available at
-# http://www.eclipse.org/legal/epl-v10.html
+# Copyright (c) 2012-2019 Red Hat, Inc.
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
 #
-# Contributors:
-#   Red Hat, Inc. - initial API and implementation
+# SPDX-License-Identifier: EPL-2.0
 #
-# To build it, run in the repository root:
-#  `docker build -t eclipse/che-server .`
-#
-# To run it:
-#  docker run --net=host \
-#             --name che \
-#             -v /var/run/docker.sock:/var/run/docker.sock \
-#             -v /home/user/che/lib:/home/user/che/lib-copy \
-#             -v /home/user/che/workspaces:/home/user/che/workspaces \
-#             -v /home/user/che/storage:/home/user/che/storage \
-#             codenvy/che-server
-#           
-FROM openjdk:8u111-jre-alpine
 
-ENV LANG=C.UTF-8 \
-    DOCKER_VERSION=1.6.0 \
-    DOCKER_BUCKET=get.docker.com \
-    CHE_IN_CONTAINER=true
+# Variables in `COPY --from=` is not supported see https://github.com/moby/moby/issues/34482
+# this is workaround to handle that.
+ARG CHE_DASHBOARD_ORGANIZATION=quay.io/eclipse
+ARG CHE_DASHBOARD_VERSION=next
+ARG CHE_WORKSPACE_LOADER_ORGANIZATION=quay.io/eclipse
+ARG CHE_WORKSPACE_LOADER_VERSION=next
 
-RUN echo "http://dl-4.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
-    apk add --update curl openssl sudo bash && \
-    curl -sSL "https://${DOCKER_BUCKET}/builds/Linux/x86_64/docker-${DOCKER_VERSION}" -o /usr/bin/docker && \
-    chmod +x /usr/bin/docker && \
-    echo "%root ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    rm -rf /tmp/* /var/cache/apk/*
+FROM ${CHE_DASHBOARD_ORGANIZATION}/che-dashboard:${CHE_DASHBOARD_VERSION} as che_dashboard_base
+FROM ${CHE_WORKSPACE_LOADER_ORGANIZATION}/che-workspace-loader:${CHE_WORKSPACE_LOADER_VERSION} as che_workspace_loader_base
 
+FROM openjdk:11-jre-slim
+ENV LANG=C.UTF-8
+RUN echo "%root ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && rm -rf /tmp/*
 EXPOSE 8000 8080
 COPY entrypoint.sh /entrypoint.sh
-COPY open-jdk-source-file-location /open-jdk-source-file-location
 ENTRYPOINT ["/entrypoint.sh"]
-ADD eclipse-che.tar.gz /home/user/
+RUN mkdir /logs /data && \
+    chmod 0777 /logs /data
+COPY --from=che_dashboard_base /usr/local/apache2/htdocs/dashboard /home/user/eclipse-che/tomcat/webapps/dashboard
+COPY --from=che_workspace_loader_base /usr/local/apache2/htdocs/workspace-loader/ /home/user/eclipse-che/tomcat/webapps/workspace-loader
+ADD eclipse-che /home/user/eclipse-che
+RUN find /home/user -type d -exec chmod 777 {} \;

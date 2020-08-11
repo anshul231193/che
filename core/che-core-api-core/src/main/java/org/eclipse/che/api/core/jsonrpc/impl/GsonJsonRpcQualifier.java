@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2012-2017 Red Hat, Inc.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2012-2018 Red Hat, Inc.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
  *   Red Hat, Inc. - initial API and implementation
@@ -40,15 +41,15 @@ public class GsonJsonRpcQualifier implements JsonRpcQualifier {
     checkNotNull(message, "Message must not be null");
     checkArgument(!message.isEmpty(), "Message must not be empty");
 
-    LOGGER.debug("Validating message: {}", message);
+    LOGGER.trace("Validating message: {}", message);
 
     try {
       jsonParser.parse(message);
 
-      LOGGER.debug("Validation successful");
+      LOGGER.trace("Validation successful");
       return true;
     } catch (JsonParseException e) {
-      LOGGER.debug("Validation failed: {}", e.getMessage(), e);
+      LOGGER.warn("Validation failed: {}", e.getMessage(), e);
       return false;
     }
   }
@@ -57,18 +58,18 @@ public class GsonJsonRpcQualifier implements JsonRpcQualifier {
   public boolean isJsonRpcRequest(String message) {
     checkNotNull(message, "Message must not be null");
     checkArgument(!message.isEmpty(), "Message must not be empty");
-    LOGGER.debug("Qualifying message: " + message);
+    LOGGER.trace("Qualifying message: " + message);
 
     JsonObject jsonObject = jsonParser.parse(message).getAsJsonObject();
-    LOGGER.debug(
+    LOGGER.trace(
         "Json keys: "
             + jsonObject.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toSet()));
 
     if (jsonObject.has("method")) {
-      LOGGER.debug("Qualified to request");
+      LOGGER.trace("Qualified to request");
       return true;
     } else {
-      LOGGER.debug("Qualified to response");
+      LOGGER.trace("Qualified to response");
       return false;
     }
   }
@@ -77,15 +78,15 @@ public class GsonJsonRpcQualifier implements JsonRpcQualifier {
   public boolean isJsonRpcResponse(String message) {
     checkNotNull(message, "Message must not be null");
     checkArgument(!message.isEmpty(), "Message must not be empty");
-    LOGGER.debug("Qualifying message: " + message);
+    LOGGER.trace("Qualifying message: " + message);
 
     JsonObject jsonObject = jsonParser.parse(message).getAsJsonObject();
-    LOGGER.debug(
+    LOGGER.trace(
         "Json keys: "
             + jsonObject.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toSet()));
 
     if (jsonObject.has("error") != jsonObject.has("result")) {
-      LOGGER.debug("Qualified to response");
+      LOGGER.trace("Qualified to response");
       return true;
     }
     return false;

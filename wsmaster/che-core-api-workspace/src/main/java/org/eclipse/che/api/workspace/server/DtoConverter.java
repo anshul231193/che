@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2012-2017 Red Hat, Inc.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2012-2018 Red Hat, Inc.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
  *   Red Hat, Inc. - initial API and implementation
@@ -16,33 +17,57 @@ import static org.eclipse.che.dto.server.DtoFactory.newDto;
 
 import java.util.List;
 import java.util.Map;
-import org.eclipse.che.api.core.model.machine.Command;
-import org.eclipse.che.api.core.model.machine.Snapshot;
-import org.eclipse.che.api.core.model.project.ProjectConfig;
-import org.eclipse.che.api.core.model.project.SourceStorage;
-import org.eclipse.che.api.core.model.workspace.Environment;
-import org.eclipse.che.api.core.model.workspace.ExtendedMachine;
-import org.eclipse.che.api.core.model.workspace.ServerConf2;
+import org.eclipse.che.api.core.model.workspace.Runtime;
+import org.eclipse.che.api.core.model.workspace.Warning;
 import org.eclipse.che.api.core.model.workspace.Workspace;
 import org.eclipse.che.api.core.model.workspace.WorkspaceConfig;
-import org.eclipse.che.api.core.model.workspace.WorkspaceRuntime;
-import org.eclipse.che.api.machine.shared.dto.CommandDto;
-import org.eclipse.che.api.machine.shared.dto.SnapshotDto;
-import org.eclipse.che.api.workspace.server.model.impl.stack.StackImpl;
+import org.eclipse.che.api.core.model.workspace.config.Command;
+import org.eclipse.che.api.core.model.workspace.config.Environment;
+import org.eclipse.che.api.core.model.workspace.config.MachineConfig;
+import org.eclipse.che.api.core.model.workspace.config.ProjectConfig;
+import org.eclipse.che.api.core.model.workspace.config.ServerConfig;
+import org.eclipse.che.api.core.model.workspace.config.SourceStorage;
+import org.eclipse.che.api.core.model.workspace.config.Volume;
+import org.eclipse.che.api.core.model.workspace.devfile.Action;
+import org.eclipse.che.api.core.model.workspace.devfile.Component;
+import org.eclipse.che.api.core.model.workspace.devfile.Devfile;
+import org.eclipse.che.api.core.model.workspace.devfile.Endpoint;
+import org.eclipse.che.api.core.model.workspace.devfile.Entrypoint;
+import org.eclipse.che.api.core.model.workspace.devfile.Env;
+import org.eclipse.che.api.core.model.workspace.devfile.Metadata;
+import org.eclipse.che.api.core.model.workspace.devfile.PreviewUrl;
+import org.eclipse.che.api.core.model.workspace.devfile.Project;
+import org.eclipse.che.api.core.model.workspace.devfile.Source;
+import org.eclipse.che.api.core.model.workspace.runtime.Machine;
+import org.eclipse.che.api.core.model.workspace.runtime.RuntimeIdentity;
+import org.eclipse.che.api.core.model.workspace.runtime.Server;
+import org.eclipse.che.api.workspace.shared.dto.CommandDto;
 import org.eclipse.che.api.workspace.shared.dto.EnvironmentDto;
-import org.eclipse.che.api.workspace.shared.dto.EnvironmentRecipeDto;
-import org.eclipse.che.api.workspace.shared.dto.ExtendedMachineDto;
+import org.eclipse.che.api.workspace.shared.dto.MachineConfigDto;
+import org.eclipse.che.api.workspace.shared.dto.MachineDto;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
-import org.eclipse.che.api.workspace.shared.dto.ServerConf2Dto;
+import org.eclipse.che.api.workspace.shared.dto.RecipeDto;
+import org.eclipse.che.api.workspace.shared.dto.RuntimeDto;
+import org.eclipse.che.api.workspace.shared.dto.RuntimeIdentityDto;
+import org.eclipse.che.api.workspace.shared.dto.ServerConfigDto;
+import org.eclipse.che.api.workspace.shared.dto.ServerDto;
 import org.eclipse.che.api.workspace.shared.dto.SourceStorageDto;
+import org.eclipse.che.api.workspace.shared.dto.VolumeDto;
+import org.eclipse.che.api.workspace.shared.dto.WarningDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceConfigDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceDto;
-import org.eclipse.che.api.workspace.shared.dto.WorkspaceRuntimeDto;
-import org.eclipse.che.api.workspace.shared.dto.stack.StackComponentDto;
-import org.eclipse.che.api.workspace.shared.dto.stack.StackDto;
-import org.eclipse.che.api.workspace.shared.dto.stack.StackSourceDto;
-import org.eclipse.che.api.workspace.shared.stack.Stack;
-import org.eclipse.che.api.workspace.shared.stack.StackSource;
+import org.eclipse.che.api.workspace.shared.dto.devfile.ComponentDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.DevfileActionDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.DevfileCommandDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.DevfileDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.DevfileVolumeDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.EndpointDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.EntrypointDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.EnvDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.MetadataDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.PreviewUrlDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.ProjectDto;
+import org.eclipse.che.api.workspace.shared.dto.devfile.SourceDto;
 
 /**
  * Helps to convert to/from DTOs related to workspace.
@@ -53,14 +78,157 @@ public final class DtoConverter {
 
   /** Converts {@link Workspace} to {@link WorkspaceDto}. */
   public static WorkspaceDto asDto(Workspace workspace) {
-    return newDto(WorkspaceDto.class)
-        .withId(workspace.getId())
-        .withStatus(workspace.getStatus())
-        .withNamespace(workspace.getNamespace())
-        .withTemporary(workspace.isTemporary())
-        .withAttributes(workspace.getAttributes())
-        .withConfig(asDto(workspace.getConfig()))
-        .withRuntime(asDto(workspace.getRuntime()));
+    WorkspaceDto workspaceDto =
+        newDto(WorkspaceDto.class)
+            .withId(workspace.getId())
+            .withStatus(workspace.getStatus())
+            .withNamespace(workspace.getNamespace())
+            .withTemporary(workspace.isTemporary())
+            .withAttributes(workspace.getAttributes());
+
+    if (workspace.getConfig() != null) {
+      workspaceDto.setConfig(asDto(workspace.getConfig()));
+    }
+
+    if (workspace.getDevfile() != null) {
+      workspaceDto.setDevfile(asDto(workspace.getDevfile()));
+    }
+
+    if (workspace.getRuntime() != null) {
+      RuntimeDto runtime = asDto(workspace.getRuntime());
+      workspaceDto.setRuntime(runtime);
+    }
+
+    return workspaceDto;
+  }
+
+  public static DevfileDto asDto(Devfile devfile) {
+    List<DevfileCommandDto> commands =
+        devfile.getCommands().stream().map(DtoConverter::asDto).collect(toList());
+    List<ComponentDto> components =
+        devfile.getComponents().stream().map(DtoConverter::asDto).collect(toList());
+    List<ProjectDto> projects =
+        devfile.getProjects().stream().map(DtoConverter::asDto).collect(toList());
+    return newDto(DevfileDto.class)
+        .withApiVersion(devfile.getApiVersion())
+        .withCommands(commands)
+        .withComponents(components)
+        .withProjects(projects)
+        .withAttributes(devfile.getAttributes())
+        .withMetadata(asDto(devfile.getMetadata()));
+  }
+
+  private static ProjectDto asDto(Project project) {
+    Source source = project.getSource();
+    return newDto(ProjectDto.class)
+        .withName(project.getName())
+        .withClonePath(project.getClonePath())
+        .withSource(
+            newDto(SourceDto.class)
+                .withType(source.getType())
+                .withLocation(source.getLocation())
+                .withBranch(source.getBranch())
+                .withStartPoint(source.getStartPoint())
+                .withTag(source.getTag())
+                .withCommitId(source.getCommitId())
+                .withSparseCheckoutDir(source.getSparseCheckoutDir()));
+  }
+
+  private static ComponentDto asDto(Component component) {
+    return newDto(ComponentDto.class)
+        .withType(component.getType())
+        .withAlias(component.getAlias())
+        .withAutomountWorkspaceSecrets(component.getAutomountWorkspaceSecrets())
+        // chePlugin/cheEditor
+        .withId(component.getId())
+        .withRegistryUrl(component.getRegistryUrl())
+        // chePlugin
+        .withPreferences(component.getPreferences())
+        // dockerimage
+        .withImage(component.getImage())
+        .withMemoryLimit(component.getMemoryLimit())
+        .withMemoryRequest(component.getMemoryRequest())
+        .withCpuLimit(component.getCpuLimit())
+        .withCpuRequest(component.getCpuRequest())
+        .withCommand(component.getCommand())
+        .withArgs(component.getArgs())
+        .withEndpoints(component.getEndpoints().stream().map(DtoConverter::asDto).collect(toList()))
+        .withEnv(component.getEnv().stream().map(DtoConverter::asDto).collect(toList()))
+        .withMountSources(component.getMountSources())
+        .withVolumes(component.getVolumes().stream().map(DtoConverter::asDto).collect(toList()))
+        // k8s/os
+        .withReference(component.getReference())
+        .withReferenceContent(component.getReferenceContent())
+        .withSelector(component.getSelector())
+        .withEntrypoints(
+            component.getEntrypoints().stream().map(DtoConverter::asDto).collect(toList()));
+  }
+
+  private static EntrypointDto asDto(Entrypoint entrypoint) {
+    return newDto(EntrypointDto.class)
+        .withContainerName(entrypoint.getContainerName())
+        .withParentName(entrypoint.getParentName())
+        .withParentSelector(entrypoint.getParentSelector())
+        .withCommand(entrypoint.getCommand())
+        .withArgs(entrypoint.getArgs());
+  }
+
+  private static DevfileVolumeDto asDto(
+      org.eclipse.che.api.core.model.workspace.devfile.Volume volume) {
+    return newDto(DevfileVolumeDto.class)
+        .withName(volume.getName())
+        .withContainerPath(volume.getContainerPath());
+  }
+
+  private static EnvDto asDto(Env env) {
+    return newDto(EnvDto.class).withName(env.getName()).withValue(env.getValue());
+  }
+
+  private static EndpointDto asDto(Endpoint endpoint) {
+    return newDto(EndpointDto.class)
+        .withName(endpoint.getName())
+        .withPort(endpoint.getPort())
+        .withAttributes(endpoint.getAttributes());
+  }
+
+  private static DevfileCommandDto asDto(
+      org.eclipse.che.api.core.model.workspace.devfile.Command command) {
+    List<DevfileActionDto> actions =
+        command.getActions().stream().map(DtoConverter::asDto).collect(toList());
+
+    DevfileCommandDto commandDto =
+        newDto(DevfileCommandDto.class)
+            .withName(command.getName())
+            .withActions(actions)
+            .withAttributes(command.getAttributes());
+
+    if (command.getPreviewUrl() != null) {
+      commandDto.setPreviewUrl(asDto(command.getPreviewUrl()));
+    }
+    return commandDto;
+  }
+
+  private static PreviewUrlDto asDto(PreviewUrl previewUrl) {
+    final PreviewUrlDto previewUrlDto = newDto(PreviewUrlDto.class);
+    if (previewUrl != null) {
+      if (previewUrl.getPath() != null) {
+        previewUrlDto.setPath(previewUrl.getPath());
+      }
+      if (previewUrl.getPort() != 0) {
+        previewUrlDto.setPort(previewUrl.getPort());
+      }
+    }
+    return previewUrlDto;
+  }
+
+  private static DevfileActionDto asDto(Action action) {
+    return newDto(DevfileActionDto.class)
+        .withComponent(action.getComponent())
+        .withType(action.getType())
+        .withWorkdir(action.getWorkdir())
+        .withCommand(action.getCommand())
+        .withReference(action.getReference())
+        .withReferenceContent(action.getReferenceContent());
   }
 
   /** Converts {@link WorkspaceConfig} to {@link WorkspaceConfigDto}. */
@@ -82,6 +250,7 @@ public final class DtoConverter {
         .withCommands(commands)
         .withProjects(projects)
         .withEnvironments(environments)
+        .withAttributes(workspace.getAttributes())
         .withDescription(workspace.getDescription());
   }
 
@@ -92,46 +261,6 @@ public final class DtoConverter {
         .withCommandLine(command.getCommandLine())
         .withType(command.getType())
         .withAttributes(command.getAttributes());
-  }
-
-  /** Convert {@link StackImpl} to {@link StackDto}. */
-  public static StackDto asDto(Stack stack) {
-    WorkspaceConfigDto workspaceConfigDto = null;
-    if (stack.getWorkspaceConfig() != null) {
-      workspaceConfigDto = asDto(stack.getWorkspaceConfig());
-    }
-
-    StackSourceDto stackSourceDto = null;
-    StackSource source = stack.getSource();
-    if (source != null) {
-      stackSourceDto =
-          newDto(StackSourceDto.class).withType(source.getType()).withOrigin(source.getOrigin());
-    }
-
-    List<StackComponentDto> componentsDto = null;
-    if (stack.getComponents() != null) {
-      componentsDto =
-          stack
-              .getComponents()
-              .stream()
-              .map(
-                  component ->
-                      newDto(StackComponentDto.class)
-                          .withName(component.getName())
-                          .withVersion(component.getVersion()))
-              .collect(toList());
-    }
-
-    return newDto(StackDto.class)
-        .withId(stack.getId())
-        .withName(stack.getName())
-        .withDescription(stack.getDescription())
-        .withCreator(stack.getCreator())
-        .withScope(stack.getScope())
-        .withTags(stack.getTags())
-        .withComponents(componentsDto)
-        .withWorkspaceConfig(workspaceConfigDto)
-        .withSource(stackSourceDto);
   }
 
   /** Converts {@link ProjectConfig} to {@link ProjectConfigDto}. */
@@ -167,7 +296,7 @@ public final class DtoConverter {
     }
     if (env.getRecipe() != null) {
       envDto.withRecipe(
-          newDto(EnvironmentRecipeDto.class)
+          newDto(RecipeDto.class)
               .withType(env.getRecipe().getType())
               .withContentType(env.getRecipe().getContentType())
               .withLocation(env.getRecipe().getLocation())
@@ -176,10 +305,10 @@ public final class DtoConverter {
     return envDto;
   }
 
-  /** Converts {@link ExtendedMachine} to {@link ExtendedMachineDto}. */
-  public static ExtendedMachineDto asDto(ExtendedMachine machine) {
-    ExtendedMachineDto machineDto =
-        newDto(ExtendedMachineDto.class).withAgents(machine.getAgents());
+  /** Converts {@link MachineConfig} to {@link MachineConfigDto}. */
+  public static MachineConfigDto asDto(MachineConfig machine) {
+    MachineConfigDto machineDto =
+        newDto(MachineConfigDto.class).withInstallers(machine.getInstallers());
     if (machine.getServers() != null) {
       machineDto.setServers(
           machine
@@ -191,50 +320,103 @@ public final class DtoConverter {
     if (machine.getAttributes() != null) {
       machineDto.setAttributes(machine.getAttributes());
     }
+    if (machine.getVolumes() != null) {
+      machineDto.setVolumes(
+          machine
+              .getVolumes()
+              .entrySet()
+              .stream()
+              .collect(toMap(Map.Entry::getKey, entry -> asDto(entry.getValue()))));
+    }
+    if (machine.getEnv() != null) {
+      machineDto.setEnv(machine.getEnv());
+    }
     return machineDto;
   }
 
-  /** Converts {@link ServerConf2} to {@link ServerConf2Dto}. */
-  public static ServerConf2Dto asDto(ServerConf2 serverConf) {
-    return newDto(ServerConf2Dto.class)
+  /** Converts {@link ServerConfig} to {@link ServerConfigDto}. */
+  public static ServerConfigDto asDto(ServerConfig serverConf) {
+    return newDto(ServerConfigDto.class)
         .withPort(serverConf.getPort())
         .withProtocol(serverConf.getProtocol())
-        .withProperties(serverConf.getProperties());
+        .withPath(serverConf.getPath())
+        .withAttributes(serverConf.getAttributes());
   }
 
-  /** Converts {@link WorkspaceRuntime} to {@link WorkspaceRuntimeDto}. */
-  public static WorkspaceRuntimeDto asDto(WorkspaceRuntime runtime) {
+  /** Converts {@link Runtime} to {@link RuntimeDto}. */
+  public static RuntimeDto asDto(Runtime runtime) {
     if (runtime == null) {
       return null;
     }
-    final WorkspaceRuntimeDto runtimeDto =
-        newDto(WorkspaceRuntimeDto.class)
-            .withActiveEnv(runtime.getActiveEnv())
-            .withRootFolder(runtime.getRootFolder());
-    runtimeDto.withMachines(
-        runtime
-            .getMachines()
-            .stream()
-            .map(org.eclipse.che.api.machine.server.DtoConverter::asDto)
-            .collect(toList()));
-    if (runtime.getDevMachine() != null) {
-      runtimeDto.withDevMachine(
-          org.eclipse.che.api.machine.server.DtoConverter.asDto(runtime.getDevMachine()));
+    RuntimeDto runtimeDto = newDto(RuntimeDto.class).withActiveEnv(runtime.getActiveEnv());
+    if (runtime.getMachines() != null) {
+      runtimeDto.setMachines(
+          runtime
+              .getMachines()
+              .entrySet()
+              .stream()
+              .collect(toMap(Map.Entry::getKey, entry -> asDto(entry.getValue()))));
+    }
+    if (runtime.getWarnings() != null) {
+      runtimeDto.setWarnings(
+          runtime.getWarnings().stream().map(DtoConverter::asDto).collect(toList()));
+    }
+
+    if (runtime.getCommands() != null) {
+      runtimeDto.setCommands(
+          runtime.getCommands().stream().map(DtoConverter::asDto).collect(toList()));
     }
     return runtimeDto;
   }
 
-  /** Converts {@link Snapshot} to {@link SnapshotDto}. */
-  public static SnapshotDto asDto(Snapshot snapshot) {
-    return newDto(SnapshotDto.class)
-        .withId(snapshot.getId())
-        .withCreationDate(snapshot.getCreationDate())
-        .withDescription(snapshot.getDescription())
-        .withDev(snapshot.isDev())
-        .withType(snapshot.getType())
-        .withWorkspaceId(snapshot.getWorkspaceId())
-        .withEnvName(snapshot.getEnvName())
-        .withMachineName(snapshot.getMachineName());
+  /** Converts {@link RuntimeIdentity} to {@link RuntimeIdentityDto}. */
+  public static RuntimeIdentityDto asDto(RuntimeIdentity identity) {
+    return newDto(RuntimeIdentityDto.class)
+        .withWorkspaceId(identity.getWorkspaceId())
+        .withEnvName(identity.getEnvName())
+        .withOwnerId(identity.getOwnerId());
+  }
+
+  /** Converts {@link Volume} to {@link VolumeDto}. */
+  public static VolumeDto asDto(Volume volume) {
+    return newDto(VolumeDto.class).withPath(volume.getPath());
+  }
+
+  /** Converts {@link Warning} to {@link WarningDto}. */
+  public static WarningDto asDto(Warning warning) {
+    return newDto(WarningDto.class).withCode(warning.getCode()).withMessage(warning.getMessage());
+  }
+
+  /** Converts {@link Server} to {@link ServerDto}. */
+  public static ServerDto asDto(Server server) {
+    return newDto(ServerDto.class)
+        .withUrl(server.getUrl())
+        .withStatus(server.getStatus())
+        .withAttributes(server.getAttributes());
+  }
+
+  /** Converts {@link Machine} to {@link MachineDto}. */
+  public static MachineDto asDto(Machine machine) {
+    MachineDto machineDto =
+        newDto(MachineDto.class)
+            .withAttributes(machine.getAttributes())
+            .withStatus(machine.getStatus());
+    if (machine.getServers() != null) {
+      machineDto.withServers(
+          machine
+              .getServers()
+              .entrySet()
+              .stream()
+              .collect(toMap(Map.Entry::getKey, entry -> asDto(entry.getValue()))));
+    }
+    return machineDto;
+  }
+
+  /** Converts {@link Metadata} to {@link MetadataDto}. */
+  public static MetadataDto asDto(Metadata metadata) {
+    return newDto(MetadataDto.class)
+        .withName(metadata.getName())
+        .withGenerateName(metadata.getGenerateName());
   }
 
   private DtoConverter() {}

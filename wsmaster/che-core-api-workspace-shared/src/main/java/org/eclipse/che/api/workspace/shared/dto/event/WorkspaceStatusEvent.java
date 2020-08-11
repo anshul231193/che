@@ -1,15 +1,17 @@
 /*
- * Copyright (c) 2012-2017 Red Hat, Inc.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2012-2018 Red Hat, Inc.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
  *   Red Hat, Inc. - initial API and implementation
  */
 package org.eclipse.che.api.workspace.shared.dto.event;
 
+import java.util.Map;
 import org.eclipse.che.api.core.model.workspace.WorkspaceStatus;
 import org.eclipse.che.api.core.notification.EventOrigin;
 import org.eclipse.che.commons.annotation.Nullable;
@@ -24,26 +26,6 @@ import org.eclipse.che.dto.shared.DTO;
 @EventOrigin("workspace")
 @DTO
 public interface WorkspaceStatusEvent {
-
-  /** Defines event type for workspace status event changes. */
-  enum EventType {
-    STARTING,
-    RUNNING,
-    STOPPING,
-    STOPPED,
-    ERROR,
-    SNAPSHOT_CREATING,
-    SNAPSHOT_CREATED,
-    SNAPSHOT_CREATION_ERROR
-  }
-
-  /** Returns the type of this event. */
-  EventType getEventType();
-
-  void setEventType(EventType eventType);
-
-  WorkspaceStatusEvent withEventType(EventType eventType);
-
   WorkspaceStatus getStatus();
 
   void setStatus(WorkspaceStatus status);
@@ -68,14 +50,18 @@ public interface WorkspaceStatusEvent {
 
   WorkspaceStatusEvent withWorkspaceId(String machineId);
 
-  /**
-   * Returns an error message value if and only if the type of this event is either {@link
-   * EventType#ERROR} or {@link EventType#SNAPSHOT_CREATION_ERROR}.
-   */
+  /** Returns an error message value. */
   @Nullable
   String getError();
 
   void setError(String error);
 
   WorkspaceStatusEvent withError(String error);
+
+  void setOptions(Map<String, String> options);
+
+  @Nullable
+  Map<String, String> getOptions();
+
+  WorkspaceStatusEvent withOptions(Map<String, String> options);
 }

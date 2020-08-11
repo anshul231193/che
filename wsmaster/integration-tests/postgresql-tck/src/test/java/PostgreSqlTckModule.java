@@ -1,13 +1,15 @@
 /*
- * Copyright (c) 2012-2017 Red Hat, Inc.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2012-2018 Red Hat, Inc.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
  *   Red Hat, Inc. - initial API and implementation
  */
+
 import com.google.inject.TypeLiteral;
 import com.google.inject.persist.Transactional;
 import java.sql.Connection;
@@ -16,21 +18,12 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.persistence.EntityManager;
 import org.eclipse.che.account.spi.AccountDao;
 import org.eclipse.che.account.spi.AccountImpl;
 import org.eclipse.che.account.spi.jpa.JpaAccountDao;
-import org.eclipse.che.api.core.model.workspace.Workspace;
-import org.eclipse.che.api.machine.server.jpa.JpaRecipeDao;
-import org.eclipse.che.api.machine.server.jpa.JpaSnapshotDao;
-import org.eclipse.che.api.machine.server.model.impl.CommandImpl;
-import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
-import org.eclipse.che.api.machine.server.recipe.RecipeImpl;
-import org.eclipse.che.api.machine.server.spi.RecipeDao;
-import org.eclipse.che.api.machine.server.spi.SnapshotDao;
 import org.eclipse.che.api.ssh.server.jpa.JpaSshDao;
 import org.eclipse.che.api.ssh.server.model.impl.SshPairImpl;
 import org.eclipse.che.api.ssh.server.spi.SshDao;
@@ -43,18 +36,29 @@ import org.eclipse.che.api.user.server.model.impl.UserImpl;
 import org.eclipse.che.api.user.server.spi.PreferenceDao;
 import org.eclipse.che.api.user.server.spi.ProfileDao;
 import org.eclipse.che.api.user.server.spi.UserDao;
-import org.eclipse.che.api.workspace.server.jpa.JpaStackDao;
+import org.eclipse.che.api.workspace.activity.JpaWorkspaceActivityDao;
+import org.eclipse.che.api.workspace.activity.WorkspaceActivity;
+import org.eclipse.che.api.workspace.activity.WorkspaceActivityDao;
+import org.eclipse.che.api.workspace.server.devfile.SerializableConverter;
 import org.eclipse.che.api.workspace.server.jpa.JpaWorkspaceDao;
+import org.eclipse.che.api.workspace.server.model.impl.CommandImpl;
 import org.eclipse.che.api.workspace.server.model.impl.EnvironmentImpl;
-import org.eclipse.che.api.workspace.server.model.impl.EnvironmentRecipeImpl;
-import org.eclipse.che.api.workspace.server.model.impl.ExtendedMachineImpl;
+import org.eclipse.che.api.workspace.server.model.impl.MachineConfigImpl;
 import org.eclipse.che.api.workspace.server.model.impl.ProjectConfigImpl;
-import org.eclipse.che.api.workspace.server.model.impl.ServerConf2Impl;
+import org.eclipse.che.api.workspace.server.model.impl.RecipeImpl;
+import org.eclipse.che.api.workspace.server.model.impl.ServerConfigImpl;
 import org.eclipse.che.api.workspace.server.model.impl.SourceStorageImpl;
+import org.eclipse.che.api.workspace.server.model.impl.VolumeImpl;
 import org.eclipse.che.api.workspace.server.model.impl.WorkspaceConfigImpl;
 import org.eclipse.che.api.workspace.server.model.impl.WorkspaceImpl;
-import org.eclipse.che.api.workspace.server.model.impl.stack.StackImpl;
-import org.eclipse.che.api.workspace.server.spi.StackDao;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.ActionImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.ComponentImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.DevfileImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.EndpointImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.EntrypointImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.EnvImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.ProjectImpl;
+import org.eclipse.che.api.workspace.server.model.impl.devfile.SourceImpl;
 import org.eclipse.che.api.workspace.server.spi.WorkspaceDao;
 import org.eclipse.che.commons.lang.Pair;
 import org.eclipse.che.commons.test.db.PersistTestModuleBuilder;
@@ -70,6 +74,14 @@ import org.eclipse.che.core.db.schema.SchemaInitializer;
 import org.eclipse.che.core.db.schema.impl.flyway.FlywaySchemaInitializer;
 import org.eclipse.che.security.PasswordEncryptor;
 import org.eclipse.che.security.SHA512PasswordEncryptor;
+import org.eclipse.che.workspace.infrastructure.kubernetes.cache.KubernetesMachineCache;
+import org.eclipse.che.workspace.infrastructure.kubernetes.cache.KubernetesRuntimeStateCache;
+import org.eclipse.che.workspace.infrastructure.kubernetes.cache.jpa.JpaKubernetesMachineCache;
+import org.eclipse.che.workspace.infrastructure.kubernetes.cache.jpa.JpaKubernetesRuntimeStateCache;
+import org.eclipse.che.workspace.infrastructure.kubernetes.model.KubernetesMachineImpl;
+import org.eclipse.che.workspace.infrastructure.kubernetes.model.KubernetesRuntimeCommandImpl;
+import org.eclipse.che.workspace.infrastructure.kubernetes.model.KubernetesRuntimeState;
+import org.eclipse.che.workspace.infrastructure.kubernetes.model.KubernetesServerImpl;
 import org.postgresql.Driver;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
@@ -109,17 +121,35 @@ public class PostgreSqlTckModule extends TckModule {
                 WorkspaceConfigImpl.class,
                 ProjectConfigImpl.class,
                 EnvironmentImpl.class,
-                EnvironmentRecipeImpl.class,
-                ExtendedMachineImpl.class,
-                SourceStorageImpl.class,
-                ServerConf2Impl.class,
-                StackImpl.class,
-                CommandImpl.class,
-                SnapshotImpl.class,
                 RecipeImpl.class,
-                SshPairImpl.class)
+                MachineConfigImpl.class,
+                SourceStorageImpl.class,
+                ServerConfigImpl.class,
+                CommandImpl.class,
+                SshPairImpl.class,
+                WorkspaceActivity.class,
+                VolumeImpl.class,
+                // devfile
+                ActionImpl.class,
+                org.eclipse.che.api.workspace.server.model.impl.devfile.CommandImpl.class,
+                ComponentImpl.class,
+                DevfileImpl.class,
+                EndpointImpl.class,
+                EntrypointImpl.class,
+                EnvImpl.class,
+                ProjectImpl.class,
+                SourceImpl.class,
+                org.eclipse.che.api.workspace.server.model.impl.devfile.VolumeImpl.class,
+                // k8s-runtimes
+                KubernetesRuntimeState.class,
+                KubernetesRuntimeCommandImpl.class,
+                KubernetesMachineImpl.class,
+                KubernetesMachineImpl.MachineId.class,
+                KubernetesServerImpl.class,
+                KubernetesServerImpl.ServerId.class)
             .addEntityClass(
                 "org.eclipse.che.api.workspace.server.model.impl.ProjectConfigImpl$Attribute")
+            .addClass(SerializableConverter.class)
             .build());
     bind(TckResourcesCleaner.class).to(JpaCleaner.class);
 
@@ -148,14 +178,8 @@ public class PostgreSqlTckModule extends TckModule {
     bind(PasswordEncryptor.class).to(SHA512PasswordEncryptor.class);
 
     // machine
-    bind(RecipeDao.class).to(JpaRecipeDao.class);
-    bind(SnapshotDao.class).to(JpaSnapshotDao.class);
     bind(new TypeLiteral<TckRepository<RecipeImpl>>() {})
         .toInstance(new JpaTckRepository<>(RecipeImpl.class));
-    bind(new TypeLiteral<TckRepository<SnapshotImpl>>() {})
-        .toInstance(new JpaTckRepository<>(SnapshotImpl.class));
-    bind(new TypeLiteral<TckRepository<Workspace>>() {})
-        .toInstance(new WorkspaceRepoForSnapshots());
 
     // ssh
     bind(SshDao.class).to(JpaSshDao.class);
@@ -164,9 +188,22 @@ public class PostgreSqlTckModule extends TckModule {
 
     // workspace
     bind(WorkspaceDao.class).to(JpaWorkspaceDao.class);
-    bind(StackDao.class).to(JpaStackDao.class);
+    bind(WorkspaceActivityDao.class).to(JpaWorkspaceActivityDao.class);
     bind(new TypeLiteral<TckRepository<WorkspaceImpl>>() {}).toInstance(new WorkspaceRepository());
-    bind(new TypeLiteral<TckRepository<StackImpl>>() {}).toInstance(new StackRepository());
+
+    // k8s runtimes
+    bind(new TypeLiteral<TckRepository<KubernetesRuntimeState>>() {})
+        .toInstance(new JpaTckRepository<>(KubernetesRuntimeState.class));
+
+    bind(new TypeLiteral<TckRepository<KubernetesMachineImpl>>() {})
+        .toInstance(new JpaTckRepository<>(KubernetesMachineImpl.class));
+
+    bind(KubernetesRuntimeStateCache.class).to(JpaKubernetesRuntimeStateCache.class);
+    bind(KubernetesMachineCache.class).to(JpaKubernetesMachineCache.class);
+    bind(JpaKubernetesRuntimeStateCache.RemoveKubernetesRuntimeBeforeWorkspaceRemoved.class)
+        .asEagerSingleton();
+    bind(JpaKubernetesMachineCache.RemoveKubernetesMachinesBeforeRuntimesRemoved.class)
+        .asEagerSingleton();
   }
 
   private static void waitConnectionIsEstablished(String dbUrl, String dbUser, String dbPassword) {
@@ -247,25 +284,8 @@ public class PostgreSqlTckModule extends TckModule {
     }
   }
 
-  static class WorkspaceRepoForSnapshots extends JpaTckRepository<Workspace> {
-    public WorkspaceRepoForSnapshots() {
-      super(WorkspaceImpl.class);
-    }
-
-    @Override
-    public void createAll(Collection<? extends Workspace> entities) throws TckRepositoryException {
-      super.createAll(
-          entities
-              .stream()
-              .map(
-                  w ->
-                      new WorkspaceImpl(
-                          w, new AccountImpl(w.getNamespace(), w.getNamespace(), "simple")))
-              .collect(Collectors.toList()));
-    }
-  }
-
   private static class WorkspaceRepository extends JpaTckRepository<WorkspaceImpl> {
+
     public WorkspaceRepository() {
       super(WorkspaceImpl.class);
     }
@@ -274,21 +294,9 @@ public class PostgreSqlTckModule extends TckModule {
     public void createAll(Collection<? extends WorkspaceImpl> entities)
         throws TckRepositoryException {
       for (WorkspaceImpl entity : entities) {
-        entity.getConfig().getProjects().forEach(ProjectConfigImpl::prePersistAttributes);
-      }
-      super.createAll(entities);
-    }
-  }
-
-  private static class StackRepository extends JpaTckRepository<StackImpl> {
-    public StackRepository() {
-      super(StackImpl.class);
-    }
-
-    @Override
-    public void createAll(Collection<? extends StackImpl> entities) throws TckRepositoryException {
-      for (StackImpl stack : entities) {
-        stack.getWorkspaceConfig().getProjects().forEach(ProjectConfigImpl::prePersistAttributes);
+        if (entity.getConfig() != null) {
+          entity.getConfig().getProjects().forEach(ProjectConfigImpl::prePersistAttributes);
+        }
       }
       super.createAll(entities);
     }

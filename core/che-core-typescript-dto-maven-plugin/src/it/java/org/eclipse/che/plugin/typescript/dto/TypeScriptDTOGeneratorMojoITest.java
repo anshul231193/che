@@ -1,15 +1,17 @@
 /*
- * Copyright (c) 2012-2017 Red Hat, Inc.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2012-2018 Red Hat, Inc.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
  *   Red Hat, Inc. - initial API and implementation
  */
 package org.eclipse.che.plugin.typescript.dto;
 
+import java.util.concurrent.TimeUnit;
 import org.eclipse.che.api.core.util.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,10 +49,14 @@ public class TypeScriptDTOGeneratorMojoITest {
      */
     private static final String GENERATED_DTO_NAME = "my-typescript-test-module.ts";
 
+    private static final String GENERATED_DTO_DTS_NAME = "my-typescript-test-module.d.ts";
+
     /**
      * DTO new name
      */
     private static final String DTO_FILENAME = "dto.ts";
+
+    private static final String DTO_DTS_FILENAME = "dtoD.d.ts";
 
     /**
      * DTO test name
@@ -109,13 +115,19 @@ public class TypeScriptDTOGeneratorMojoITest {
     }
 
     /**
-     * Generates a docker exec command used to launch node commands
+     * Generates a docker exec command used to launch node commands. Uses podman if present on the
+     * system.
+     *
      * @return list of command parameters
      */
-    protected List<String> getDockerExec() {
+    protected List<String> getDockerExec() throws IOException, InterruptedException {
         // setup command line
-        List<String> command = new ArrayList();
-        command.add("docker");
+        List<String> command = new ArrayList<>();
+        if (hasPodman()) {
+            command.add("podman");
+        } else {
+            command.add("docker");
+        }
         command.add("run");
         command.add("--rm");
         command.add("-v");
@@ -231,11 +243,19 @@ public class TypeScriptDTOGeneratorMojoITest {
      * @return an updated command with chown applied on it
      */
     protected String wrapLinuxCommand(String command) throws IOException, InterruptedException {
-
-        String setGroup = "export GROUP_NAME=`(getent group " + getGid() + " || (groupadd -g " + getGid() + " user && echo user:x:" + getGid() +")) | cut -d: -f1`";
-        String setUser = "export USER_NAME=`(getent passwd " + getUid() + " || (useradd -u " + getUid() + " -g ${GROUP_NAME} user && echo user:x:" + getGid() +")) | cut -d: -f1`";
-        String chownCommand= "chown --silent -R ${USER_NAME}.${GROUP_NAME} /usr/src/app || true";
-        return setGroup + " && " + setUser + " && " + chownCommand + " && " + command + " && " + chownCommand;
+        if (hasPodman()) {
+            LOG.debug("using podman, don't need to wrap anything");
+            return command;
+        }
+        String setGroup =
+            "export GROUP_NAME=`(getent group " + getGid() + " || (groupadd -g " + getGid()
+                + " user && echo user:x:" + getGid() + ")) | cut -d: -f1`";
+        String setUser =
+            "export USER_NAME=`(getent passwd " + getUid() + " || (useradd -u " + getUid()
+                + " -g ${GROUP_NAME} user && echo user:x:" + getGid() + ")) | cut -d: -f1`";
+        String chownCommand = "chown --silent -R ${USER_NAME}.${GROUP_NAME} /usr/src/app || true";
+        return setGroup + " && " + setUser + " && " + chownCommand + " && " + command + " && "
+            + chownCommand;
     }
 
 
@@ -250,7 +270,7 @@ public class TypeScriptDTOGeneratorMojoITest {
         // search DTO
         Path p = this.buildDirectory;
         final int maxDepth = 10;
-        Stream<Path> matches = java.nio.file.Files.find(p, maxDepth, (path, basicFileAttributes) -> path.getFileName().toString().equals(GENERATED_DTO_NAME));
+        Stream<Path> matches = java.nio.file.Files.find( p, maxDepth, (path, basicFileAttributes) -> path.getFileName().toString().equals(GENERATED_DTO_NAME));
 
         // take first
         Optional<Path> optionalPath = matches.findFirst();
@@ -262,6 +282,19 @@ public class TypeScriptDTOGeneratorMojoITest {
 
         //copy it in test resources folder where package.json is
         java.nio.file.Files.copy(generatedDtoPath, this.rootPath.resolve(DTO_FILENAME), StandardCopyOption.REPLACE_EXISTING);
+
+        matches = java.nio.file.Files.find( p, maxDepth, (path, basicFileAttributes) -> path.getFileName().toString().equals(GENERATED_DTO_DTS_NAME));
+
+        // take first
+        optionalPath = matches.findFirst();
+        if (!optionalPath.isPresent()) {
+            throw new IllegalStateException("Unable to find generated DTO file named '" + GENERATED_DTO_DTS_NAME + "'. Check it has been generated first");
+        }
+
+        generatedDtoPath = optionalPath.get();
+
+        //copy it in test resources folder where package.json is
+        java.nio.file.Files.copy(generatedDtoPath, this.rootPath.resolve(DTO_DTS_FILENAME), StandardCopyOption.REPLACE_EXISTING);
 
         // setup command line
         List<String> command = getDockerExec();
@@ -286,4 +319,17 @@ public class TypeScriptDTOGeneratorMojoITest {
 
     }
 
+    private boolean hasPodman() throws InterruptedException, IOException {
+        if (SystemInfo.isLinux()) {
+            ProcessBuilder podmanProcessBuilder = new ProcessBuilder("which", "podman");
+            Process podmanProcess = podmanProcessBuilder.start();
+            if (podmanProcess.waitFor(1, TimeUnit.SECONDS)) {
+                return podmanProcess.exitValue() == 0;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
 }
